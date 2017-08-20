@@ -1,13 +1,10 @@
-# NGS2-APIs
-This repository contains applications to handle various tasks through publicly available APIs, utilizing custom wrappers and SDKs.
-
-## Payment processing with PayPal
-### Introduction
+# World Labs Incentive Payment Processing
+## Introduction
 As part of World Labs, Gallup will be sending participants their incentive payments via [PayPal](https://www.paypal.com). This is an easy, convenient, and inexpensive way to transfer payments to participants around the world quickly.
 
 To assist in these payments, Gallup uses the [PayPal APIs](https://developer.paypal.com) to facilitate payments in bulk. This repository contains the code to help facilitate the transfer of those payments to participants.
 
-### Setup
+## Setup
 Specifically, this repository uses the [Payouts API](https://developer.paypal.com/docs/api/payments.payouts-batch) from PayPal, which allows a user to transfer up to 250 payments in a single API call. To do this requires a few pieces of information:
 
 1. A .csv or .txt file with details on the payments to process
@@ -16,13 +13,13 @@ Specifically, this repository uses the [Payouts API](https://developer.paypal.co
 
 In addition, this repository is using PayPal's official [Python SDK](https://github.com/paypal/PayPal-Python-SDK) to authenticate and make API calls.
 
-#### Payment details
+### Payment details
 A required piece of information for processing payments is an input worksheet as either a .csv or .txt file. **For purposes here, a .csv file is required.** The .csv should have the following fields:
 
-##### Required Fields
+#### Required Fields
 * `batch_id`:
     * Field type: Alphanumeric string
-    * Description: This will identify which participants are batched together for payment.
+    * Description: Determined by Gallup; will identify which participants are batched together for payment.
     * Notes: There can be no more than 250 participants in a single batch. This will be checked at run-time by the program and the program will abort if a batch has more than 250 participants in it.
 * `first_name`:
     * Field type: String
@@ -43,13 +40,13 @@ A required piece of information for processing payments is an input worksheet as
 * `item_id`:
     * Field type: Alphanumeric string
     * Description: This is the individual identifying transaction code within a batch
-    * Notes: This is helpful for recordkeeping purposes.
+    * Notes: This is determined by Gallup for recordkeeping purposes.
 * `processed_code`:
     * Field type: Alphanumeric string
     * Description: *This field will be blank for transactions that have not been processed* and will be filled in when the program executes
     * Notes: This field is to record the PayPal transaction processing code in case follow-up after-the-fact is needed. **In the input worksheet, this field must be blank**; if it is not, then the transaction will not be processed.
 
-##### Worksheet examples
+#### Worksheet examples
 An example of what the input worksheet will look like before processing is below (note, the `processed_code` column is blank):
 
 batch_id | first_name | receiver_email | value | currency | item_id | processed_code
@@ -66,44 +63,17 @@ AAA | Bob | bob@notrealemail.com | 0.12 | USD | AAA001 | S0MECODE
 AAA | Rob | rob@notrealemail.com | 1.23 | USD | AAA002 | S0MECODE
 BBB | Sob | sob@notrealemail.com | 0.99 | USD | BBB001 | @DIFFCODE
 
-##### What to do
+#### What to do
 There will be one input worksheet that will serve as a general 'ledger' of payment transactions throughout the life of World Labs. The worksheet will have all required fields as listed above, and as transactions are entered for payment/processing, all details *other than* the `processed_code` will be filled in. Once the ledger is processed, then a PayPal processing code will be added to the entry. In this way, one ledger can be used over and over, as the payout program will only look for transactions that **do not have** a `processed_code`, since that indicates the transaction is 'new' and needs to be processed.
 
-### Running the program
+## Running the program
 The processing program is written in Python and can be called from the command line. It takes three required arguments:
 
 * `-a` or `--auth`: **This argument requires two inputs.** The first is the PayPal REST API key for the account sending money and the second is the PayPal REST API secret. These are assigned by PayPal when an application using its REST APIs is created.
 * `-e` or `--environment`: This argument is either `sandbox` or `production`. All other arguments will cause the program to abort. For actual payments, `production` should be used; using `sandbox` will allow one to test if the transactions are structured correctly, but it will not make an actual payment.
 * `-p` or `--payments`: This is the full path and file name to the .csv that contains payment transaction information. This file is both input and output; once read in and payments are processed, this file will be updated by adding the `processed_code` to each transaction and writing it back to disk.
-=======
 
-## Text Messages with Twillo
-### Introduction
-As part of World Labs, Gallup will be sending participants SMS reminders before their experiments via [Twilio](https://www.twilio.com) APIs. This allows flexibility in programming reminders and ensuring participant participation.
-
-### Setup
-Specifically, this repository uses the [Twilio SDK for Python](https://github.com/twilio/twilio-python) to wrap up messages for delivery. To execute these calls, a few pieces of information are necessary:
-1. A .csv file with the numbers to send messages to.
-2. A .txt file with the message text to be sent.
-3. REST API keys to authenticate against the API.
-
-#### Content details
-##### Phone numbers
-The .csv containing phone numbers to send messages to should be structured as follows:
-* `ExternalDataReference`: A alphanumeric field with the participant's unique identifying number.
-* `SMS_PHONE_CLEAN`: A numeric field with the participant's phone number (without country code).
-
-##### Message text
-The .txt file should contain nothing but the text that is to be sent to participants. For example, the file could be a .txt that consisted of just the following: `This is the message to send.`
-
-#### Running the program
-The processing program is written in Python and can be called from the command line. It takes four required arguments:
-* `-a` or `--auth`: **This argument requires three inputs.** The first is the Twilio REST API key for the account and the second is the Twilio REST API secret. Finally, the third is the sending phone number associated with the Twilio account. These are all assigned/designated once signing up for a Twilio developer account.
-* `-c` or `--content`: This argument is a .txt file with the text be to sent by SMS.
-* `-n` or `--nation`: This indicates to which country the SMS messages will be sent. Currently, only implemented for the United States (enter `US`). `
-* `-p` or `--phones`: This argument is a .csv fule with the phone number and participant IDs to whom SMS messages will be sent.
-
-#### Command-line Execution
+### Command-line Execution
 To execute the program, below is an example call:
 
 ```
@@ -114,29 +84,14 @@ $ python payments/paypal.py -a $PAYPAL_ID $PAYPAL_SECRET \
 
 where `$PAYPAL_ID` and `$PAYPAL_SECRET` are stored environmental variables with the appropriate REST API key/secret values. This call is executing against the `sandbox` API (meaning no money is actually transferred) and the payment transaction .csv path/file is fully specified.
 
-#### Logging
+### Logging
 The payment program is set up with logging. Logging is important in being able to have a record of each time the program is run and what actually happened during the execution. The logging file is called `paypal_processing.log` and stored in the `payments` folder of the repository. Each execution of the program will *append* to the log, not overwrite the last transaction, meaning a complete record of all executions is possible to have on disk.
-=======
-$ python messaging/sms.py -a $TWILIO_ID $TWILIO_SECRET $TWILIO_PHONE \
-                          -c ~/Documents/ngs2/message_text.txt \
-                          -n US \
-                          -p ~/Documents/ngs2/sms_phones.csv
-```
 
-where `$TWILIO_ID`, `$TWILIO_SECRET`, and `$TWILIO_PHONE` are stored environmental variables with the appropriate REST API key/secret values.
-
-#### Logging
-The messaging program is set up with logging. Logging is important in being able to have a record of each time the program is run and what actually happened during the execution. The logging file is called `twilio_processing.log` and stored in the `messaging` folder of the repository. Each execution of the program will *append* to the log, not overwrite the last transaction, meaning a complete record of all executions is possible to have on disk.
-
-#### Testing
+### Testing
 This program includes a set of tests for the various functions that are being called through execution. They should be kept up-to-date as program functions change.
 
-### Troubleshooting
+## Troubleshooting
 If there are questions or problems, contact [Matt Hoover](matt_hoover@gallup.com) for assistance.
 
-### Conclusion
-
+## Conclusion
 This payment program is a simple execution of bulk payouts using the PayPal APIs and SDK. If needed, it can be expanded upon and used for other means. In addition, work to automate the population of the input worksheet should be undertaken as soon as the schema for how those data will be accessed is determined.
-=======
-This messaging program is a simple wrapper to send SMS messages using the Twilio APIs and SDK. If needed, it can be expanded upon and used for other means.
-
