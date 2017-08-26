@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 import argparse
 import logging
 import os
@@ -21,27 +22,31 @@ def format_phone_numbers(data, ctry):
     if ctry == 'US':
         return [(pid, '+1{}'.format(nbr)) for pid, nbr in data]
     elif ctry == 'MA':
-        pass
+        return [(pid, '+212{}'.format(nbr)) for pid, nbr in data]
     elif ctry == 'PH':
         pass
     else:
         pass
 
 
-def log_length_issues(data, ctry):
+def check_format_validity(data, ctry):
     if ctry == 'US':
-        valid_nbrs = [(pid, phone) for pid, phone in data if
-                      len(str(phone)) == 10]
-        if len(valid_nbrs) != len(data):
-            logger.info('Not all numbers valid length; {} numbers being dropped \
-                        before sending.'.format(len(data[1]) - len(valid_nbrs[1])))
-        return valid_nbrs
+        return log_length_issues(data, 10)
     elif ctry == 'MA':
-        pass
+        return log_length_issues(data, 9)
     elif ctry == 'PH':
         pass
     else:
         pass
+
+
+def log_length_issues(data, digits):
+    valid_nbrs = [(pid, phone) for pid, phone in data if
+                  len(str(phone)) == digits]
+    if len(valid_nbrs) != len(data):
+        logger.info('Not all numbers valid length; {} numbers being dropped \
+                    before sending.'.format(len(data) - len(valid_nbrs)))
+    return valid_nbrs
 
 
 def log_numeric_issues(df):
@@ -52,7 +57,7 @@ def log_numeric_issues(df):
     ]
     if len(clean_nbrs) != len(df.SMS_PHONE_CLEAN):
         logger.info('Not all numbers numeric; {} numbers being dropped before \
-                    sending.'.format(len(df.SMS_PHONE_CLEAN) - len(clean_nbrs[1])))
+                    sending.'.format(len(df.SMS_PHONE_CLEAN) - len(clean_nbrs)))
     return clean_nbrs
 
 
@@ -62,7 +67,7 @@ def msg_exists_test(content):
 
 def phone_checks(df):
     numeric_numbers = log_numeric_issues(df)
-    valid_numbers = log_length_issues(numeric_numbers, args_dict['nation'])
+    valid_numbers = check_format_validity(numeric_numbers, args_dict['nation'])
     return valid_numbers
 
 
@@ -85,7 +90,6 @@ def run(args_dict):
 
     # format phone numbers
     formatted_numbers = format_phone_numbers(valid_numbers, args_dict['nation'])
-
     # authenticate client
     twilio = Client(args_dict['auth'][0], args_dict['auth'][1])
 
@@ -126,7 +130,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--content', required=True, help='Path/file to '
                         'TXT with message content information.')
     parser.add_argument('-n', '--nation', required=True,
-                        choices=['US'], help='Country 2-letter ISO '
+                        choices=['MA', 'US'], help='Country 2-letter ISO '
                         'code for recipients.')
     parser.add_argument('-p', '--phones', required=True, help='Path/file to '
                         'CSV with phone delivery information.')
