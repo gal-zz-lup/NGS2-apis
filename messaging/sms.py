@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import argparse
+import json
 import logging
 import os
 import pandas as pd
@@ -90,21 +91,64 @@ def run(args_dict):
 
     # format phone numbers
     formatted_numbers = format_phone_numbers(valid_numbers, args_dict['nation'])
+
     # authenticate client
     twilio = Client(args_dict['auth'][0], args_dict['auth'][1])
 
-    # send messages
-    msgs = [
-        twilio.messages.create(
-            to=phone,
-            from_=args_dict['auth'][2],
-            body=msg_content,
-        ) for _, phone in formatted_numbers
-    ]
-    logger.info('Processed {} messages.'.format(len(msgs)))
+    # check for bad numbers
+    if args_dict['error_check']:
+        # gather previous error numbers
+        total_errors = [(x.to, x.error_code) for x in twilio.messages.list() if
+                        x.error_code]
+        prev_badnums = list(set([x[0] for x in total_errors if x[1]!=30001]))
+
+        # open up running tally of bad numbers
+        with open('messaging/bad_numbers.json', 'r') as f:
+            badnums = json.load(f)
+
+        # update tally
+        badnums += [x for x in prev_badnums if x not in badnums]
+
+        # cross-check (and remove) current numbers
+        formatted_numbers = [x for x in formatted_numbers if not x[1] in badnums]
+
+        # write out bad numbers for future use
+        with open('messaging/bad_numbers.json', 'w') as f:
+            json.dump(badnums, f)
+
+    # chunk large sends into batches
+    msgs = []
+    if len(formatted_numbers) > 75:
+        length = len(formatted_numbers)
+        beg = [x*75 for x in xrange(length/75 + 1)]
+        end = [x+75 for x in beg]
+        end[-1] = end[-2] + length % 75
+        for b, e in zip(beg, end):
+            for _, phone in formatted_numbers[b:e]:
+                try:
+                    msgs.append(twilio.messages.create(
+                        to=phone,
+                        from_=args_dict['auth'][2],
+                        body=msg_content,
+                    ))
+                except:
+                    pass
+            logger.info('Processed {} messages.'.format(len(msgs)))
+            time.sleep(10)
+    else:
+        for _, phone in formatted_numbers:
+            try:
+                msgs.append(twilio.messages.create(
+                    to=phone,
+                    from_=args_dict['auth'][2],
+                    body=msg_content,
+                ))
+            except:
+                pass
+        logger.info('Processed {} messages.'.format(len(msgs)))
 
     # sleep for one minute to queue messaging status for return
-    time.sleep(60)
+    time.sleep(45)
 
     # log delivery code
     delivery = pd.DataFrame(
@@ -116,7 +160,9 @@ def run(args_dict):
     # merge delivery code back to input data
     d = d.merge(delivery, on='ExternalDataReference', how='left')
 
-    # # output data
+    #
+
+    # output data
     fileparts = os.path.splitext(args_dict['phones'])
     d.to_csv('{}_delivery{}'.format(fileparts[0], fileparts[1]), index=False)
     logger.info('Closing log for {}.\n'.format(args_dict['phones']))
@@ -128,12 +174,15 @@ if __name__ == '__main__':
                         'authorization SID, token, and sending phone number '
                         '(in that order).')
     parser.add_argument('-c', '--content', required=True, help='Path/file to '
-                        'TXT with message content information.')
+                        'txt with message content information.')
+    parser.add_argument('-e', '--error_check', action='store_true',
+                        help='Indicate if phone numbers should be checked '
+                        'against a known bad/stop list.')
     parser.add_argument('-n', '--nation', required=True,
                         choices=['MA', 'US'], help='Country 2-letter ISO '
                         'code for recipients.')
     parser.add_argument('-p', '--phones', required=True, help='Path/file to '
-                        'CSV with phone delivery information.')
+                        'csv with phone delivery information.')
     args_dict = vars(parser.parse_args())
 
     run(args_dict)
