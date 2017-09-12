@@ -75,7 +75,29 @@ The processing program is written in Python and can be called from the command l
 * `-a` or `--auth`: **This argument requires two inputs.** The first is the PayPal REST API key for the account sending money and the second is the PayPal REST API secret. These are assigned by PayPal when an application using its REST APIs is created.
 * `-e` or `--environment`: This argument is either `sandbox` or `production`. All other arguments will cause the program to abort. For actual payments, `production` should be used; using `sandbox` will allow one to test if the transactions are structured correctly, but it will not make an actual payment.
 * `-p` or `--payments`: This is the full path and file name to the .csv that contains payment transaction information. This file is both input and output; once read in and payments are processed, this file will be updated by adding the `processed_code` to each transaction and writing it back to disk.
-=======
+
+#### Command-line Execution
+To execute the program, below is an example call:
+
+```
+$ python payments/paypal.py -a $PAYPAL_ID $PAYPAL_SECRET \
+                            -e sandbox \
+                            -p ~/Documents/ngs2/example_payouts.csv
+```
+
+where `$PAYPAL_ID` and `$PAYPAL_SECRET` are stored environmental variables with the appropriate REST API key/secret values. This call is executing against the `sandbox` API (meaning no money is actually transferred) and the payment transaction .csv path/file is fully specified.
+
+#### Logging
+The payment program is set up with logging. Logging is important in being able to have a record of each time the program is run and what actually happened during the execution. The logging file is called `paypal_processing.log` and stored in the `payments` folder of the repository. Each execution of the program will *append* to the log, not overwrite the last transaction, meaning a complete record of all executions is possible to have on disk.
+
+#### Testing
+This program includes a set of tests for the various functions that are being called through execution. They should be kept up-to-date as program functions change.
+
+### Troubleshooting
+If there are questions or problems, contact [Matt Hoover](matt_hoover@gallup.com) for assistance.
+
+### Conclusion
+This payment program is a simple execution of bulk payouts using the PayPal APIs and SDK. If needed, it can be expanded upon and used for other means. In addition, work to automate the population of the input worksheet should be undertaken as soon as the schema for how those data will be accessed is determined.
 
 ## Text Messages with Twillo
 ### Introduction
@@ -100,23 +122,10 @@ The .txt file should contain nothing but the text that is to be sent to particip
 The processing program is written in Python and can be called from the command line. It takes four required arguments:
 * `-a` or `--auth`: **This argument requires three inputs.** The first is the Twilio REST API key for the account and the second is the Twilio REST API secret. Finally, the third is the sending phone number associated with the Twilio account. These are all assigned/designated once signing up for a Twilio developer account.
 * `-c` or `--content`: This argument is a .txt file with the text be to sent by SMS.
-* `-n` or `--nation`: This indicates to which country the SMS messages will be sent. Currently, only implemented for the United States (enter `US`). `
+* `-n` or `--nation`: This indicates to which country the SMS messages will be sent. Currently, only implemented for the United States (enter `US`).
 * `-p` or `--phones`: This argument is a .csv fule with the phone number and participant IDs to whom SMS messages will be sent.
 
-#### Command-line Execution
-To execute the program, below is an example call:
-
 ```
-$ python payments/paypal.py -a $PAYPAL_ID $PAYPAL_SECRET \
-                            -e sandbox \
-                            -p ~/Documents/ngs2/example_payouts.csv
-```
-
-where `$PAYPAL_ID` and `$PAYPAL_SECRET` are stored environmental variables with the appropriate REST API key/secret values. This call is executing against the `sandbox` API (meaning no money is actually transferred) and the payment transaction .csv path/file is fully specified.
-
-#### Logging
-The payment program is set up with logging. Logging is important in being able to have a record of each time the program is run and what actually happened during the execution. The logging file is called `paypal_processing.log` and stored in the `payments` folder of the repository. Each execution of the program will *append* to the log, not overwrite the last transaction, meaning a complete record of all executions is possible to have on disk.
-=======
 $ python messaging/sms.py -a $TWILIO_ID $TWILIO_SECRET $TWILIO_PHONE \
                           -c ~/Documents/ngs2/message_text.txt \
                           -n US \
@@ -135,8 +144,5 @@ This program includes a set of tests for the various functions that are being ca
 If there are questions or problems, contact [Matt Hoover](matt_hoover@gallup.com) for assistance.
 
 ### Conclusion
-
-This payment program is a simple execution of bulk payouts using the PayPal APIs and SDK. If needed, it can be expanded upon and used for other means. In addition, work to automate the population of the input worksheet should be undertaken as soon as the schema for how those data will be accessed is determined.
-=======
 This messaging program is a simple wrapper to send SMS messages using the Twilio APIs and SDK. If needed, it can be expanded upon and used for other means.
 
