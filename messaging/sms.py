@@ -1,5 +1,7 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 import argparse
+import json
 import logging
 import os
 import pandas as pd
@@ -21,27 +23,31 @@ def format_phone_numbers(data, ctry):
     if ctry == 'US':
         return [(pid, '+1{}'.format(nbr)) for pid, nbr in data]
     elif ctry == 'MA':
-        pass
+        return [(pid, '+212{}'.format(nbr)) for pid, nbr in data]
     elif ctry == 'PH':
         pass
     else:
         pass
 
 
-def log_length_issues(data, ctry):
+def check_format_validity(data, ctry):
     if ctry == 'US':
-        valid_nbrs = [(pid, phone) for pid, phone in data if
-                      len(str(phone)) == 10]
-        if len(valid_nbrs) != len(data):
-            logger.info('Not all numbers valid length; {} numbers being dropped \
-                        before sending.'.format(len(data[1]) - len(valid_nbrs[1])))
-        return valid_nbrs
+        return log_length_issues(data, 10)
     elif ctry == 'MA':
-        pass
+        return log_length_issues(data, 9)
     elif ctry == 'PH':
         pass
     else:
         pass
+
+
+def log_length_issues(data, digits):
+    valid_nbrs = [(pid, phone) for pid, phone in data if
+                  len(str(phone)) == digits]
+    if len(valid_nbrs) != len(data):
+        logger.info('Not all numbers valid length; {} numbers being dropped \
+                    before sending.'.format(len(data) - len(valid_nbrs)))
+    return valid_nbrs
 
 
 def log_numeric_issues(df):
@@ -52,7 +58,7 @@ def log_numeric_issues(df):
     ]
     if len(clean_nbrs) != len(df.SMS_PHONE_CLEAN):
         logger.info('Not all numbers numeric; {} numbers being dropped before \
-                    sending.'.format(len(df.SMS_PHONE_CLEAN) - len(clean_nbrs[1])))
+                    sending.'.format(len(df.SMS_PHONE_CLEAN) - len(clean_nbrs)))
     return clean_nbrs
 
 
@@ -62,7 +68,7 @@ def msg_exists_test(content):
 
 def phone_checks(df):
     numeric_numbers = log_numeric_issues(df)
-    valid_numbers = log_length_issues(numeric_numbers, args_dict['nation'])
+    valid_numbers = check_format_validity(numeric_numbers, args_dict['nation'])
     return valid_numbers
 
 
@@ -89,18 +95,60 @@ def run(args_dict):
     # authenticate client
     twilio = Client(args_dict['auth'][0], args_dict['auth'][1])
 
-    # send messages
-    msgs = [
-        twilio.messages.create(
-            to=phone,
-            from_=args_dict['auth'][2],
-            body=msg_content,
-        ) for _, phone in formatted_numbers
-    ]
-    logger.info('Processed {} messages.'.format(len(msgs)))
+    # check for bad numbers
+    if args_dict['error_check']:
+        # gather previous error numbers
+        total_errors = [(x.to, x.error_code) for x in twilio.messages.list() if
+                        x.error_code]
+        prev_badnums = list(set([x[0] for x in total_errors if x[1]!=30001]))
+
+        # open up running tally of bad numbers
+        with open('messaging/bad_numbers.json', 'r') as f:
+            badnums = json.load(f)
+
+        # update tally
+        badnums += [x for x in prev_badnums if x not in badnums]
+
+        # cross-check (and remove) current numbers
+        formatted_numbers = [x for x in formatted_numbers if not x[1] in badnums]
+
+        # write out bad numbers for future use
+        with open('messaging/bad_numbers.json', 'w') as f:
+            json.dump(badnums, f)
+
+    # chunk large sends into batches
+    msgs = []
+    if len(formatted_numbers) > 75:
+        length = len(formatted_numbers)
+        beg = [x*75 for x in xrange(length/75 + 1)]
+        end = [x+75 for x in beg]
+        end[-1] = end[-2] + length % 75
+        for b, e in zip(beg, end):
+            for _, phone in formatted_numbers[b:e]:
+                try:
+                    msgs.append(twilio.messages.create(
+                        to=phone,
+                        from_=args_dict['auth'][2],
+                        body=msg_content,
+                    ))
+                except:
+                    pass
+            logger.info('Processed {} messages.'.format(len(msgs)))
+            time.sleep(10)
+    else:
+        for _, phone in formatted_numbers:
+            try:
+                msgs.append(twilio.messages.create(
+                    to=phone,
+                    from_=args_dict['auth'][2],
+                    body=msg_content,
+                ))
+            except:
+                pass
+        logger.info('Processed {} messages.'.format(len(msgs)))
 
     # sleep for one minute to queue messaging status for return
-    time.sleep(60)
+    time.sleep(45)
 
     # log delivery code
     delivery = pd.DataFrame(
@@ -112,7 +160,9 @@ def run(args_dict):
     # merge delivery code back to input data
     d = d.merge(delivery, on='ExternalDataReference', how='left')
 
-    # # output data
+    #
+
+    # output data
     fileparts = os.path.splitext(args_dict['phones'])
     d.to_csv('{}_delivery{}'.format(fileparts[0], fileparts[1]), index=False)
     logger.info('Closing log for {}.\n'.format(args_dict['phones']))
@@ -124,12 +174,15 @@ if __name__ == '__main__':
                         'authorization SID, token, and sending phone number '
                         '(in that order).')
     parser.add_argument('-c', '--content', required=True, help='Path/file to '
-                        'TXT with message content information.')
+                        'txt with message content information.')
+    parser.add_argument('-e', '--error_check', action='store_true',
+                        help='Indicate if phone numbers should be checked '
+                        'against a known bad/stop list.')
     parser.add_argument('-n', '--nation', required=True,
-                        choices=['US'], help='Country 2-letter ISO '
+                        choices=['MA', 'US'], help='Country 2-letter ISO '
                         'code for recipients.')
     parser.add_argument('-p', '--phones', required=True, help='Path/file to '
-                        'CSV with phone delivery information.')
+                        'csv with phone delivery information.')
     args_dict = vars(parser.parse_args())
 
     run(args_dict)

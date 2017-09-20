@@ -1,7 +1,8 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 import pytest
 
-from NGS2.messaging.sms import *
+from NGS2apis.messaging.sms import *
 
 
 @pytest.mark.parametrize('test_data, test_country, expected', [
@@ -19,20 +20,23 @@ def test_format_phone_numbers(test_data, test_country, expected):
     assert result[1][1] == expected[1][1]
 
 
-@pytest.mark.parametrize('test_data, test_country, expected', [
+@pytest.mark.parametrize('test_data, test_digits, expected', [
     (
-        [('A1', 1111111111), ('A2', 2222222222), ('A3', 333333333)],
-        'US',
-        [('A1', 1111111111), ('A2', 2222222222)],
+        [('A1', 1111111111), ('A2', 222222222), ('A3', 333333333)],
+        10,
+        [('A1', 1111111111)],
+    ),
+    (
+        [('A1', 1111111111), ('A2', 222222222), ('A3', 333333333)],
+        9,
+        [('A2', 222222222), ('A3', 333333333)],
     ),
 ])
-def test_log_length_issues(test_data, test_country, expected):
-    result = log_length_issues(test_data, test_country)
+def test_log_length_issues(test_data, test_digits, expected):
+    result = log_length_issues(test_data, test_digits)
     assert result[0][0] == expected[0][0]
     assert result[0][1] == expected[0][1]
-    assert result[1][0] == expected[1][0]
-    assert result[1][1] == expected[1][1]
-    assert len(result) == 2
+    assert len(result) == len(expected)
 
 
 @pytest.mark.parametrize('test, expected', [
@@ -50,7 +54,7 @@ def test_log_numeric_issues(test, expected):
     assert result[0][1] == expected[0][1]
     assert result[1][0] == expected[1][0]
     assert result[1][1] == expected[1][1]
-    assert len(result) == 2
+    assert len(result) == len(expected)
 
 
 @pytest.mark.parametrize('test', [

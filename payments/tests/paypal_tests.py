@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from NGS2.payments.paypal import *
+from NGS2apis.payments.paypal import *
 
 
 @pytest.mark.parametrize('test', [
