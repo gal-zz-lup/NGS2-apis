@@ -26,13 +26,13 @@ def data_structure_test(d):
         'receiver_email',
         'value'
     }
-    assert set(d.columns) == EXPECTED_COLUMNS, \
+    assert all([col in d.columns for col in EXPECTED_COLUMNS]), \
     'STOP! The input worksheet is not structured as expected.'
 
 
 def batch_size_test(d):
     # ensure no batch has more than 250 entries
-    assert d.groupby('batch_id').apply(lambda x: len(x) <= 500).all(), \
+    assert d.groupby('batch_id').apply(lambda x: len(x) <= 250).all(), \
     'STOP! Some batches are too large.'
 
 
