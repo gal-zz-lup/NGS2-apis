@@ -1,10 +1,13 @@
-#!/usr/bin/python
+#!/usr/local/Cellar/python/3.6.5/bin
 import argparse
 import logging
+import os
 import pandas as pd
 import paypalrestsdk as pp
 import re
 import sys
+
+from NGS2apis.payments.create_worksheet import create_payment_worksheet
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +70,7 @@ def unique_transaction_ids_test(d):
 def values_numeric_test(d):
     # check currency values are valid
     assert d.value.apply(lambda x: isinstance(x, (int, float))).all(), \
-    'STOP! Currencies not numeric'
+    'STOP! Currencies not numeric.'
 
 
 def data_checks(d):
@@ -80,12 +83,8 @@ def data_checks(d):
     unique_transaction_ids_test(d)
 
 
-def build_payout(df):
-    MESSAGES = [('Greetings {}. Thank you for participating in the World Lab. If '
-               'you have any problems retrieving your incentive payment, please '
-               'contact World_Lab@gallup.com. We look forward to offering '
-               'you additional World Lab opportunities in '
-               'the future.'.format(name)) for name in df.first_name]
+def build_payout(df, msg):
+    MESSAGES = [msg.format(name) for name in df.first_name]
     return [
         {
             'recipient_type': 'EMAIL',
@@ -104,12 +103,25 @@ def build_payout(df):
     ]
 
 
+def msg_checks(subj, text):
+    assert len(subj)>0, 'STOP! Message subject is empty.'
+    assert len(subj)<=50, 'STOP! Message subject too long.'
+
+    assert len(text)>0, 'STOP! Message text is empty.'
+    assert len(text)<=450, 'STOP! Message text too long.'
+
+
 def run(args_dict):
     # start logger
-    logger.info('Starting transactions for {}.'.format(args_dict['payments']))
+    logger.info('Starting transactions for {}.'.format(args_dict['data'][0]))
 
     # load payout worksheet
-    d = pd.read_csv(args_dict['payments'], sep=None, engine='python')
+    d = create_payment_worksheet(args_dict['data'][0], args_dict['data'][1])
+
+    # load message
+    msg = pd.read_excel(args_dict['data'][0], sheet_name='Template')
+    msg_subj = msg[msg.study==args_dict['data'][1]].subject.values[0]
+    msg_text = msg[msg.study==args_dict['data'][1]].body.values[0]
 
     # subset to new transactions
     subd = d[d.processed_code.isnull()]
@@ -119,6 +131,7 @@ def run(args_dict):
 
     # run data checks
     data_checks(subd)
+    msg_checks(msg_subj, msg_text)
 
     # group data by batches
     subd = subd.groupby('batch_id')
@@ -138,9 +151,9 @@ def run(args_dict):
             {
                 'sender_batch_header': {
                     'sender_batch_id': batch,
-                    'email_subject': 'World Lab Incentive Payment'
+                    'email_subject': msg_subj
                 },
-                'items': build_payout(details)
+                'items': build_payout(details, msg_text)
             },
         )
 
@@ -156,8 +169,9 @@ def run(args_dict):
             logger.info(payout.error)
 
     # output data
-    d.to_csv(args_dict['payments'], index=False)
-    logger.info('Closing log for {}.\n'.format(args_dict['payments']))
+    FILE = '{}.csv'.format(os.path.splitext(args_dict['data'][0])[0])
+    d.to_csv(FILE, index=False)
+    logger.info('Closing log for {}.\n'.format(args_dict['data'][0]))
 
 
 if __name__ == '__main__':
@@ -167,8 +181,9 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--environment', required=False, default='sandbox',
                         choices=['sandbox', 'live'], help= 'Indicates the '
                         'environment for use.')
-    parser.add_argument('-p', '--payments', required=True, help='Path/file to '
-                        'CSV with payment information.')
+    parser.add_argument('-d', '--data', required=True, nargs=2,
+                        help='Path/file to Excel with message information and '
+                        'name of study to parse.')
     args_dict = vars(parser.parse_args())
 
     run(args_dict)
