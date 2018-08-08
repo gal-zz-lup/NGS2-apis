@@ -1,6 +1,9 @@
-#!/usr/local/python
+#!#!/usr/local/Cellar/python/3.6.5/bin
 # -*- coding: utf-8 -*-
-import argparse
+import json
+import openpyxl
+import numpy as np
+import os
 import string
 import sys
 import pandas as pd
@@ -18,17 +21,12 @@ COLS = [
 ]
 
 
-def enrich_data(d, args):
-    if not 'batch_id' in d.columns:
-        d = create_batch_id(d, args['batch'])
-    if not 'value' in d.columns:
-        d['value'] = args['payment']
-    if not 'currency' in d.columns:
-        d['currency'] = 'USD'
-    if not 'item_id' in d.columns:
-        d['item_id'] = ['{}_{}'.format(x, n) for x, n in
-                        zip(d.batch_id, xrange(len(d.batch_id)))]
-    d['processed_code'] = ''
+def enrich_data(d):
+    d = create_batch_id(d, 250)
+    d['currency'] = 'USD'
+    d['item_id'] = ['{}_{}'.format(x, n) for x, n in
+                    zip(d.batch_id, range(len(d.batch_id)))]
+    d['processed_code'] = np.nan
 
     return d
 
@@ -36,40 +34,40 @@ def enrich_data(d, args):
 def create_batch_id(d, n):
     full_batches = len(d) / n
     leftovers = len(d) % n
-    full_ids = n * [''.join(random.sample(string.letters+string.digits, 6)) for
-                    x in xrange(full_batches)]
+    full_ids = (
+        n * [''.join(random.sample(string.ascii_letters+string.digits, 6)) for
+             x in range(int(full_batches))]
+    )
     full_ids.sort()
-    leftover_ids = leftovers * [''.join(random.sample(string.letters+string.digits, 6))]
+    leftover_ids = (
+        leftovers *
+        [''.join(random.sample(string.ascii_letters+string.digits, 6))]
+    )
     d['batch_id'] = full_ids + leftover_ids
 
     return d
 
 
-def run(args_dict):
+def create_payment_worksheet(file, name):
+    # load blacklist
+    with open('payments/blacklist.json', 'r') as f:
+        blacklist = json.load(f)
+    blacklist = [x.lower() for x in blacklist]
+
     # load data
-    d = pd.read_csv(args_dict['file'], sep=None, engine='python')
-    if not all([x in d.columns for x in ['first_name', 'receiver_email']]):
-        sys.exit('STOP! The input file must include `first_name` and '
-                 '`receiver_email`.')
+    d = pd.read_excel(file, sheet_name=name)
+
+    if not all([x in d.columns for x in ['first_name', 'receiver_email',
+               'value']]):
+        sys.exit('STOP! The input file must include `first_name`, '
+                 '`receiver_email`, and `value`.')
+
+    # remove blacklisted addresses
+    d = d[d.receiver_email.apply(lambda x: False if x.lower() in
+                                 blacklist else True)]
 
     # run data enrichment
-    d = enrich_data(d, args_dict)
+    d = enrich_data(d)
 
-    # write worksheet to disk
-    d[COLS].to_csv(args_dict['output'], index=False)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Take names/emails and create '
-                                     'complete workbook.')
-    parser.add_argument('-b', '--batch', default=250, type=int, help='The '
-                        'batch size for processing in PayPal.')
-    parser.add_argument('-f', '--file', required=True, help='Path/file to '
-                        'process.')
-    parser.add_argument('-o', '--output', required=True, help='Path/file to '
-                        'write file.')
-    parser.add_argument('-p', '--payment', required=False, type=float,
-                        help='Payment amount (constant) to put in worksheet.')
-    args_dict = vars(parser.parse_args())
-
-    run(args_dict)
+    # return enriched data
+    return d

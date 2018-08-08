@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/Cellar/python/3.6.5/bin
 # -*- coding: utf-8 -*-
 import argparse
 import logging
@@ -23,8 +23,8 @@ VARNAMES = [
 
 logger = logging.getLogger(__name__)
 log_format = '%(asctime)s | %(name)s | %(filename)s (%(lineno)d) | %(levelname)s | %(message)s'
-logging.basicConfig(filename='payments/paypal_processing.log', format=log_format,
-                    level=logging.DEBUG)
+logging.basicConfig(filename='/Users/matt_hoover/git/NGS2apis/payments/paypal_processing.log',
+                    format=log_format, level=logging.DEBUG)
 logging.getLogger('paypalrestsdk').setLevel(logging.WARN)
 logging.getLogger('urllib3').setLevel(logging.INFO)
 
